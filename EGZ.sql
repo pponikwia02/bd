@@ -166,4 +166,80 @@ FROM Klienci
 WHERE IDklienta NOT IN ( SELECT DISTINCT IDklienta FROM Zamówienia)
 
 -- 28.Zdefiniuj widok wyœwietlaj¹cy ID pracownika i iloœæ przyjêtych przez niego zamówieñ
---w 1997 roku.CREATE VIEW vw_Pracownik_Zamówienia_1997ASSELECT IDpracownika, COUNT(*) AS LICZBAFROM Zamówienia AS ZWHERE YEAR(DataZamówienia)=1997GROUP BY IDpracownika--29. U¿ytkownikowi Magazynier nadaj prawa do czytania widoku viewProduktyMin.GRANT SELECT ON viewProduktyMin TO Magazynier;CREATE FUNCTION fn_war_zam_klienta (@IDKlienta nvarchar(5))RETURNS MONEYASBEGINDECLARE @WYNIK MONEYSELECT @WYNIK = SUM(CenaJednostkowa * Iloœæ)FROM Zamówienia Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówieniaWHERE Z.IDklienta = @IDKlientaRETURN @WYNIKEND
+--w 1997 roku.
+CREATE VIEW vw_Pracownik_Zamówienia_1997
+AS
+SELECT IDpracownika, COUNT(*) AS LICZBA
+FROM Zamówienia AS Z
+WHERE YEAR(DataZamówienia)=1997
+GROUP BY IDpracownika
+
+--29. U¿ytkownikowi Magazynier nadaj prawa do czytania widoku viewProduktyMin.
+GRANT SELECT ON viewProduktyMin TO Magazynier;
+
+CREATE FUNCTION fn_war_zam_klienta (@IDKlienta nvarchar(5))
+RETURNS MONEY
+AS
+BEGIN
+DECLARE @WYNIK MONEY
+SELECT @WYNIK = SUM(CenaJednostkowa * Iloœæ)
+FROM Zamówienia Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+WHERE Z.IDklienta = @IDKlienta
+
+RETURN @WYNIK
+
+
+END
+
+--Wyœwietl klientów i zamówienia, które z³o¿yli
+SELECT *
+FROM Klienci AS K INNER JOIN Zamówienia AS Z ON K.IDklienta = Z.IDklienta
+
+
+--Wyœwietl klientów i zamówienia, które z³o¿yli miêdzy 1997-01-01 a 1997-01-14 w³¹cznie.
+SELECT *
+FROM Klienci AS K INNER JOIN Zamówienia AS Z ON K.IDklienta = Z.IDklienta
+WHERE DataZamówienia BETWEEN '1997-01-01' AND '1997-01-14'
+
+--Wyœwietl tych klientów, którzy nie z³o¿yli ¿adnego zamówienia.
+SELECT *
+FROM Klienci AS K LEFT OUTER JOIN Zamówienia AS Z ON K.IDklienta = Z.IDklienta
+WHERE Z.IDklienta IS NULL
+
+--Wyœwietl klientów i kategorie towarów, które zamówili.SELECT DISTINCT NazwaFirmy, KA.NazwaKategoriiFROM Klienci AS K INNER JOIN Zamówienia AS Z ON K.IDklienta = Z.IDklienta INNER JOIN PozycjeZamówienia AS PZ ON PZ.IDzamówienia = Z.IDzamówienia INNER JOIN MG.ProduktyAS P ON P.IDproduktu = PZ.IDproduktu INNER JOIN MG.Kategorie AS KA ON P.IDkategorii = KA.IDkategorii--Poka¿ tych pracowników, którzy przyjêli przynajmniej jedno zamówienie.SELECT DISTINCT P.Imiê, P.Nazwisko
+FROM Pracownicy AS P
+INNER JOIN Zamówienia AS Z ON P.IDpracownika = Z.IDpracownika
+
+--Poka¿ klientów, którzy nigdy nie zamówili s³odyczy.
+SELECT IDKLIENTA
+FROM KLIENCI 
+WHERE IDklienta NOT IN(
+SELECT IDklienta
+FROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = pz.IDzamówienia
+INNER JOIN mg.Produkty AS PR ON PZ.IDproduktu = PR.IDproduktu
+INNER JOIN mg.Kategorie AS KA ON PR.IDkategorii = KA.IDkategorii
+WHERE KA.NazwaKategorii ='S³odycze')
+
+--Poka¿ klientów mieszkaj¹cych w Londynie, którzy z³o¿yli zamówienie 2 lipca 1997 roku
+SELECT *
+FROM Klienci AS K INNER JOIN Zamówienia AS Z ON K.IDklienta = Z.IDklienta
+WHERE K.Miasto = 'Londyn' and z.DataZamówienia = '1997-07-02'
+
+--Wyœwietl wszystkie produkty, które zakupi³ klient o ID równym ‘MACKI’
+SELECT DISTINCT PR.NazwaProduktu
+FROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+INNER JOIN mg.Produkty AS PR ON PZ.IDproduktu = PR.IDproduktu
+WHERE Z.IDklienta = 'MACKI'
+
+--Wyœwietl nazwê i kod tych produktów, które zosta³y wycofane	
+SELECT IDproduktu, NazwaProduktu
+FROM MG.Produkty
+WHERE Wycofany = 1
+
+--Wyœwietl produkty o cenie wiêkszej od 25 z³.
+SELECT *
+FROM MG.Produkty
+WHERE CenaJednostkowa > 25
+
+--Wyœwietl klientów maj¹cych siedzibê w miastach zaczynaj¹cych siê na literê ‘L’.SELECT IDklienta, NazwaFirmyFROM Klienci WHERE Miasto LIKE 'L%'--Wyœwietl wartoœæ wszystkich pozycji zamówieñ wiêkszych od 100 z³SELECT	CenaJednostkowa* IloœæFROM PozycjeZamówieniaWHERE CenaJednostkowa* Iloœæ > 100--Wyœwietl klientów, którzy nie posiadaj¹ faksu.SELECT *FROM KlienciWHERE FAKS IS NULL--Nale¿y wyœwietliæ wszystkie miasta wystêpuj¹ce bazie danychSELECT MIASTOFROM KlienciUNION SELECT MIASTOFROM mg.DostawcyUNION SELECT MIASTOFROM Pracownicy--SprawdŸ, czy na liœcie produktów jest taki, z którego ani jedna sztuka nie zosta³a sprzedanaSELECT IDproduktu, NazwaProduktuFROM MG.ProduktyEXCEPTSELECT PR.IDproduktu, NazwaProduktuFROM mg.Produkty AS PR INNER JOIN PozycjeZamówienia AS PZ ON PR.IDproduktu = PZ.IDproduktu--Wyœwietl ranking klientów wed³ug iloœci z³o¿onych zamówieñ. SELECT Z.IDklienta, COUNT(*) AS ILOŒÆFROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówieniaGROUP BY Z.IDklientaORDER BY ILOŒÆ DESC--Wyœwietl ranking pracowników wed³ug iloœci przyjêtych zamówieñ.SELECT P.IDpracownika, COUNT(*) AS ILOŒÆFROM Pracownicy AS P INNER JOIN Zamówienia AS Z ON P.IDpracownika = Z.IDpracownikaGROUP BY P.IDpracownikaORDER BY ILOŒÆ DESC--Podaj wartoœæ zamówieñ wzglêdem krajów, wynik ma zostaæ pouk³adany od wartoœci najwiêkszej
+--wielkoœci do najmniejszej.SELECT KrajOdbiorcy, SUM(CenaJednostkowa*Iloœæ)AS WARTOŒÆFROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówieniaGROUP BY KrajOdbiorcyORDER BY WARTOŒÆ DESC--Wyœwietl wartoœæ z³o¿onych przez klientów zamówieñ.SELECT Z.IDklienta, SUM(CenaJednostkowa*Iloœæ) AS WARTOSCFROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówieniaGROUP BY Z.IDklienta--
