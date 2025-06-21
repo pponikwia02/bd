@@ -545,3 +545,187 @@ GO
 
 exec pr_Zamówienia_Klienta 'ALFKI'
 --Zdefiniuj procedurê wyœwietlaj¹c¹ przeterminowane zamówienia
+--Napisz funkcjê sprawdzaj¹c¹ istnienie tabeli. Parametrem wejœciowym jest nazwa
+--tabeli (CHAR(128)). Funkcja zwraca 0 je¿eli tabela istnieje, 1 je¿eli tabela nie istnieje,
+--NULL w przypadku b³êdnych parametrów.
+
+CREATE FUNCTION fn_czy_istnieje (@Nazwa char(128))
+returns bit
+as
+BEGIN
+if LEN(@Nazwa)=0 or @Nazwa is null
+return null
+if EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = @Nazwa)
+RETURN 1
+ELSE
+RETURN 0
+END
+GO
+
+--Zdefiniuj funkcjê obliczaj¹c¹ silniê liczby podanej jako parametr wejœciowy.CREATE FUNCTION fn_factorian (@liczba int)RETURNS BIGINTASBEGINDECLARE @WYNIK BIGINT = 1IF @liczba < 0 RETURN NULLWHILE @liczba > 1BEGIN	SET @Wynik = @Wynik* @Liczba	SET @Liczba = @Liczba -1	END	return @WynikEND--Zdefiniuj procedurê sk³adowan¹ zwracaj¹c¹ zamówienia klienta. Pokazaæ nale¿y: ID
+--klienta, jego nazwê, ID zamówienia i datê zamówienia. Parametrem wejœciowym jest
+--identyfikator klienta.
+
+CREATE OR ALTER PROCEDURE pr_Zam_Klienta(@IDKlienta varchar(5))
+AS
+BEGIN
+SELECT K.IDklienta,K.NazwaFirmy,Z.IDzamówienia,Z.DataZamówienia
+FROM Klienci AS K INNER JOIN Zamówienia AS Z ON K.IDklienta = Z.IDklienta
+WHERE Z.IDklienta = @IDKlienta
+END
+GO
+EXEC pr_Zam_Klienta 'ALFKI'
+
+--Zdefiniuj procedurê wyœwietlaj¹c¹ wartoœæ zamówienia o identyfikatorze podanym
+--parametrem. Gdy wartoœci parametru nie podano nale¿y wyœwietliæ wartoœæ
+--wszystkich zamówieñ. Wyœwietliæ nale¿y id zamówienia, id klienta i wartoœæ.
+--W przypadku wyœwietlenia wartoœci wszystkich zamówieñ w miejsce identyfikatora
+--klienta nale¿y podaæ wartoœæ ‘ALL’.
+
+CREATE OR ALTER PROCEDURE pr_Ja_jebie_nie_zdam(@ID int)
+AS
+BEGIN
+IF @ID IS NULL
+BEGIN
+SELECT 'ALL', SUM(CenaJednostkowa*Iloœæ) AS Wartoœæ
+FROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+END
+ELSE
+SELECT Z.IDzamówienia,Z.IDklienta, SUM(CenaJednostkowa*Iloœæ) AS Wartoœæ
+FROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+WHERE Z.IDzamówienia = @ID
+GROUP BY Z.IDzamówienia,Z.IDklienta
+END
+GO
+
+EXEC pr_Ja_jebie_nie_zdam null
+
+--Zdefiniuj procedurê sk³adowan¹ zawracaj¹c¹ id zamówienia, datê zamówienia
+--i wartoœæ zamówienia dla zdefiniowanego parametrami wejœciowymi okresu
+--czasowego. Nale¿y uwzglêdniæ obs³ugê poprawnoœci wartoœci parametrów
+--wejœciowych
+
+CREATE OR ALTER PROCEDURE pr_Przedzia³_czasowy
+@Data_Start datetime, @Data_Stop datetime
+AS
+BEGIN
+IF @Data_Start > @Data_Stop 
+BEGIN
+RAISERROR ('Data start jest z przysz³oœci',16,1);
+RETURN;
+END
+IF @Data_Start IS NULL OR @Data_Stop IS NULL
+BEGIN
+RAISERROR ('PODANO NIEPOPRAWNE DANE',16,1);
+RETURN;
+END
+SELECT Z.IDzamówienia, Z.DataZamówienia, SUM(CenaJednostkowa*Iloœæ)AS WARTOŒÆ
+FROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+WHERE Z.DataZamówienia BETWEEN @Data_Start AND @Data_Stop
+GROUP BY Z.IDzamówienia, Z.DataZamówienia
+END
+GO
+
+EXEC pr_Przedzia³_czasowy @Data_Start = '1997-01-01', @Data_Stop = '1997-12-31';
+
+
+--Zdefiniuj kursor zwracaj¹cy ID produktu, nazwê produktu i cenê jednostkow¹,
+--a nastêpnie kod przegl¹daj¹cy kursor z zatrzymaniem na 10 wierszu i potwierdzaj¹cym
+--to komunikatem 'jesteœmy na 10 wierszu'.
+DECLARE @IDproduktu INT, 
+        @NazwaProduktu NVARCHAR(100), 
+        @CenaJednostkowa MONEY,
+        @Licznik INT = 0;
+
+-- Definicja kursora
+DECLARE KursorProdukty CURSOR FOR
+SELECT IDproduktu, NazwaProduktu, CenaJednostkowa
+FROM mg.Produkty;
+
+-- Otwarcie kursora
+OPEN KursorProdukty;
+
+-- Pobranie pierwszego rekordu
+FETCH NEXT FROM KursorProdukty INTO @IDproduktu, @NazwaProduktu, @CenaJednostkowa;
+
+-- Przegl¹danie danych
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @Licznik = @Licznik + 1;
+
+    -- Wyœwietlenie danych (opcjonalne – pomocne w testach)
+    PRINT CAST(@Licznik AS VARCHAR) + '. ' + @NazwaProduktu + ' (' + CAST(@CenaJednostkowa AS VARCHAR) + ' z³)';
+
+    -- Sprawdzenie, czy to 10. wiersz
+    IF @Licznik = 10
+    BEGIN
+        PRINT 'Jesteœmy na 10 wierszu';
+        BREAK; -- zakoñczenie przegl¹dania po 10 wierszu
+    END
+
+    FETCH NEXT FROM KursorProdukty INTO @IDproduktu, @NazwaProduktu, @CenaJednostkowa;
+END
+
+-- Zamkniêcie i usuniêcie kursora
+CLOSE KursorProdukty;
+DEALLOCATE KursorProdukty;
+
+--Dla ka¿dego klienta ze Stanów Zjednoczonych A.P. nale¿y podaæ jego zamówienia z ich
+--wartoœciami, obs³uguj¹cych go pracowników i listê kategorii produktów, które
+--zamawia³. Dane nale¿y zapisaæ w tabeli tymczasowej o postaci [id klienta],
+--[id zamówienia], [id pracownika], [id kategorii].
+
+DROP TABLE IF EXISTS dbo.#DaneKlientówUSA
+CREATE TABLE #DaneKlientówUSA(
+IDKlienta varchar(5),
+IDZamówienia int,
+IDPracownika int,
+IDKategorii int
+)
+INSERT INTO #DaneKlientówUSA
+SELECT Z.IDklienta, Z.IDzamówienia, P.IDpracownika, PR.IDkategorii
+FROM Pracownicy AS P INNER JOIN Zamówienia AS Z ON P.IDpracownika = Z.IDpracownika
+INNER JOIN PozycjeZamówienia AS PZ ON PZ.IDzamówienia = Z.IDzamówienia
+INNER JOIN mg.Produkty AS PR ON PZ.IDproduktu = PR.IDproduktu
+WHERE Z.KrajOdbiorcy = 'USA'
+
+--Wyœwietl kolejnych 10 klientów rozpoczynaj¹c od 10, podaæ nale¿y ich id, nazwê i kraj.
+SELECT IDklienta, NazwaFirmy, Kraj
+FROM Klienci
+ORDER BY IDklienta
+OFFSET 9 ROWS FETCH NEXT 10 ROWS ONLY;
+
+--Wyœwietl wszystkie miasta wystêpuj¹ce w danych bazy [Northwind].SELECT MiastoFROM PracownicyUNIONSELECT MiastoFROM KlienciUNIONSELECT MiastoFROM MG.Dostawcy--Wyœwietl miasta, w których mieszkaj¹ i klienci i pracownicy.SELECT MIASTOFROM PracownicyINTERSECTSELECT MiastoFROM Klienci--Wyœwietl miasta, w których maj¹ siedzibê dostawcy a nie mieszkaj¹ pracownicy.SELECT MiastoFROM mg.DostawcyEXCEPTSELECT MiastoFROM Pracownicy--Nale¿y wyœwietliæ iloœæ zamówieñ z³o¿onych w ka¿dym roku.SELECT YEAR(Z.DataZamówienia), COUNT(*) AS ILEFROM Zamówienia AS ZGROUP BY YEAR(Z.DataZamówienia)--Dla tabeli Produkty nale¿y wprowadziæ ograniczenie nie pozwalaj¹ce na przyjêcie
+--wartoœci ujemnych przez kolumnê [CenaJednostkowa].ALTER TABLE Produkty
+ADD CONSTRAINT CHK_CenaJednostkowa_NieUjemna CHECK (CenaJednostkowa >= 0);
+--Zdefiniuj wyzwalacz, który operacjê usuniêcia produktu zamienia na zmianê wartoœci
+--kolumny [Wycofano] na 1.
+CREATE TRIGGER tr_ZamienUsuniecieNaWycofanie
+ON mg.Produkty
+INSTEAD OF DELETE
+AS
+BEGIN
+    -- Aktualizujemy kolumnê Wycofano na 1 zamiast usuwaæ rekord
+    UPDATE P
+    SET P.Wycofano = 1
+    FROM Produkty AS P
+    INNER JOIN deleted AS D ON P.IDproduktu = D.IDproduktu
+END
+
+--Zdefiniuj wyzwalacz, który nie pozwoli na zatrudnienie pracownika, który nie ukoñczy³
+--18 lat. 
+CREATE TRIGGER tr_pe³noletnoœæ_pracowników
+ON PRACOWNICY
+AFTER INSERT
+AS
+BEGIN
+	IF Exists (
+	SELECT 1
+	FROM inserted
+	WHERE DATEDIFF(YEAR, DataUrodzenia,GetDate())<18
+	)
+	BEGIN
+	RAISERROR('Pracownik musi byæ pe³noletni',16,1)
+	Rollback TRANSACTION
+	END
+END
