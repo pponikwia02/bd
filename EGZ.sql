@@ -562,7 +562,22 @@ RETURN 0
 END
 GO
 
---Zdefiniuj funkcjê obliczaj¹c¹ silniê liczby podanej jako parametr wejœciowy.CREATE FUNCTION fn_factorian (@liczba int)RETURNS BIGINTASBEGINDECLARE @WYNIK BIGINT = 1IF @liczba < 0 RETURN NULLWHILE @liczba > 1BEGIN	SET @Wynik = @Wynik* @Liczba	SET @Liczba = @Liczba -1	END	return @WynikEND--Zdefiniuj procedurê sk³adowan¹ zwracaj¹c¹ zamówienia klienta. Pokazaæ nale¿y: ID
+--Zdefiniuj funkcjê obliczaj¹c¹ silniê liczby podanej jako parametr wejœciowy.
+CREATE FUNCTION fn_factorian (@liczba int)
+RETURNS BIGINT
+AS
+BEGIN
+DECLARE @WYNIK BIGINT = 1
+IF @liczba < 0 RETURN NULL
+WHILE @liczba > 1
+BEGIN
+	SET @Wynik = @Wynik* @Liczba
+	SET @Liczba = @Liczba -1
+	END
+	return @Wynik
+END
+
+--Zdefiniuj procedurê sk³adowan¹ zwracaj¹c¹ zamówienia klienta. Pokazaæ nale¿y: ID
 --klienta, jego nazwê, ID zamówienia i datê zamówienia. Parametrem wejœciowym jest
 --identyfikator klienta.
 
@@ -695,8 +710,38 @@ FROM Klienci
 ORDER BY IDklienta
 OFFSET 9 ROWS FETCH NEXT 10 ROWS ONLY;
 
---Wyœwietl wszystkie miasta wystêpuj¹ce w danych bazy [Northwind].SELECT MiastoFROM PracownicyUNIONSELECT MiastoFROM KlienciUNIONSELECT MiastoFROM MG.Dostawcy--Wyœwietl miasta, w których mieszkaj¹ i klienci i pracownicy.SELECT MIASTOFROM PracownicyINTERSECTSELECT MiastoFROM Klienci--Wyœwietl miasta, w których maj¹ siedzibê dostawcy a nie mieszkaj¹ pracownicy.SELECT MiastoFROM mg.DostawcyEXCEPTSELECT MiastoFROM Pracownicy--Nale¿y wyœwietliæ iloœæ zamówieñ z³o¿onych w ka¿dym roku.SELECT YEAR(Z.DataZamówienia), COUNT(*) AS ILEFROM Zamówienia AS ZGROUP BY YEAR(Z.DataZamówienia)--Dla tabeli Produkty nale¿y wprowadziæ ograniczenie nie pozwalaj¹ce na przyjêcie
---wartoœci ujemnych przez kolumnê [CenaJednostkowa].ALTER TABLE Produkty
+--Wyœwietl wszystkie miasta wystêpuj¹ce w danych bazy [Northwind].
+SELECT Miasto
+FROM Pracownicy
+UNION
+SELECT Miasto
+FROM Klienci
+UNION
+SELECT Miasto
+FROM MG.Dostawcy
+
+--Wyœwietl miasta, w których mieszkaj¹ i klienci i pracownicy.
+SELECT MIASTO
+FROM Pracownicy
+INTERSECT
+SELECT Miasto
+FROM Klienci
+
+--Wyœwietl miasta, w których maj¹ siedzibê dostawcy a nie mieszkaj¹ pracownicy.
+SELECT Miasto
+FROM mg.Dostawcy
+EXCEPT
+SELECT Miasto
+FROM Pracownicy
+
+--Nale¿y wyœwietliæ iloœæ zamówieñ z³o¿onych w ka¿dym roku.
+SELECT YEAR(Z.DataZamówienia), COUNT(*) AS ILE
+FROM Zamówienia AS Z
+GROUP BY YEAR(Z.DataZamówienia)
+
+--Dla tabeli Produkty nale¿y wprowadziæ ograniczenie nie pozwalaj¹ce na przyjêcie
+--wartoœci ujemnych przez kolumnê [CenaJednostkowa].
+ALTER TABLE Produkty
 ADD CONSTRAINT CHK_CenaJednostkowa_NieUjemna CHECK (CenaJednostkowa >= 0);
 --Zdefiniuj wyzwalacz, który operacjê usuniêcia produktu zamienia na zmianê wartoœci
 --kolumny [Wycofano] na 1.
@@ -729,3 +774,258 @@ BEGIN
 	Rollback TRANSACTION
 	END
 END
+GO;
+
+/*
+b) Bezpoœrednio do pliku na dysku:
+                                        BACKUP DATABASE nazwa_bazy
+                                        TO DISK = 'D:\backup\plik.bak';
+                                        GO
+
+c) Backup ró¿nicowy:
+                                        BACKUP DATABASE nazwa_bazy
+                                        TO DISK = 'D:\backup\plik_diff.bak'
+                                        WITH DIFFERENTIAL;
+                                        GO
+
+d) Backup dziennika transakcji:
+                                       BACKUP LOG nazwa_bazy
+                                       TO DISK = 'D:\backup\plik.trn';
+                                       GO
+
+a) w celu nadpisania istniej¹cych danych:
+                                       BACKUP DATABASE nazwa_bazy
+                                       TO nazwa_backup_device WITH INIT;
+                                       GO
+
+b) aby dopisaæ do noœnika now¹ kopiê zapasow¹ (opcja domyœlna):
+                                       BACKUP DATABASE nazwa_bazy
+                                       TO nazwa_backup_device WITH NOINIT;
+                                       GO
+
+Aby odtworzyæ bazê z poziomu SQL, nale¿y napisaæ:
+                             USE master
+                             GO                   
+                             RESTORE DATABASE nazwa_bazy
+                             FROM DISK = 'œcie¿ka'
+                             [WITH REPLACE];
+                             GO
+I dalej, w celu odtworzenia dziennika transakcji, z poziomu SQL nale¿y napisaæ:
+                                RESTORE LOG nazwa_bazy
+                                FROM DISK = 'œcie¿ka'
+                                   WITH FILE = 1,
+                                   WITH NORECOVERY;
+                                GO
+i przywrócenia bazy do u¿ytkowania:
+                                RESTORE DATABASE nazwa_bazy
+                                WITH RECOVERY;
+                                GO
+*/
+
+--Wyœwietl klientów, którzy z³o¿yli zamówienia w 1997 roku i mieszkaj¹ w Niemczech.
+SELECT k.idklienta, NazwaFirmy
+FROM Klienci as k INNER JOIN Zamówienia AS Z on K.IdKlienta = Z.idklienta
+WHERE K.kraj =	'Niemcy' AND Year(DataZamówienia)=1997
+
+
+--Poka¿ produkty, których cena jednostkowa jest wy¿sza ni¿ œrednia cena w ich kategorii.
+SELECT *
+FROM mg.Produkty as P iNNER JOIN POZYCJEZAMÓWIENIA AS PZ ON p.idproduktu = pz.idproduktu
+WHERE P.CENAJEDNOSTKOWA >
+(
+SELECT AVG(CENAJEDNOSTKOWA)
+FROM mg.Produkty AS PR INNER JOIN MG.Kategorie AS KA ON PR.IDkategorii = KA.IDkategorii
+WHERE P.IDkategorii = PR.IDkategorii
+)
+--Dla ka¿dego klienta podaj liczbê jego zamówieñ oraz ³¹czn¹ wartoœæ wszystkich zamówieñ.
+SELECT Z.IDklienta, COUNT(*) AS ILE_ZAMÓWIEÑ, SUM(CenaJednostkowa*Iloœæ) AS WARTOŒÆ
+FROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+GROUP BY Z.IDklienta
+--ZnajdŸ pracowników, którzy nigdy nie obs³u¿yli ¿adnego zamówienia.
+SELECT *
+FROM Pracownicy AS PR
+WHERE PR.IDpracownika NOT IN (
+SELECT P.IDpracownika
+FROM Pracownicy AS P INNER JOIN Zamówienia AS Z ON P.IDpracownika = Z.IDpracownika
+GROUP BY P.IDpracownika
+)
+--Wyœwietl ranking krajów wed³ug wartoœci zamówieñ (od najwy¿szego)
+SELECT Z.KrajOdbiorcy, SUM(CenaJednostkowa*Iloœæ)AS WARTOŒÆ
+FROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+GROUP BY Z.KrajOdbiorcy
+ORDER BY WARTOŒÆ DESC
+--Utwórz widok pokazuj¹cy IDzamówienia, datê i wartoœæ zamówienia.
+CREATE OR ALTER VIEW vw_1
+AS
+SELECT Z.IDzamówienia, DataZamówienia, SUM(CenaJednostkowa*Iloœæ)AS WARTOŒÆ
+FROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+GROUP BY Z.IDzamówienia, DataZamówienia
+
+SELECT *
+FROM vw_1
+--Utwórz widok zwracaj¹cy pracowników oraz liczbê ich zamówieñ z roku 1997.
+CREATE OR ALTER VIEW vw_2
+AS
+SELECT Z.IDpracownika, COUNT(*) AS ILE
+FROM Pracownicy AS P INNER JOIN Zamówienia AS Z ON P.IDpracownika = Z.IDpracownika
+GROUP BY Z.IDpracownika
+
+SELECT *
+FROM vw_2
+--Utwórz widok pokazuj¹cy klientów, którzy z³o¿yli wiêcej ni¿ 5 zamówieñ.
+CREATE OR ALTER VIEW vw_3
+AS
+SELECT Z.IDklienta,COUNT(*) AS ILE
+FROM Klienci AS K INNER JOIN Zamówienia AS Z ON K.IDklienta = Z.IDklienta
+INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+GROUP BY Z.IDklienta
+HAVING COUNT(*) > 5
+
+SELECT *
+FROM vw_3
+--Utwórz widok pokazuj¹cy produkty, które zosta³y wycofane (Wycofano = 1).
+CREATE OR ALTER VIEW vw_4	
+AS
+SELECT *
+FROM mg.Produkty
+WHERE Wycofany = 1
+--Utwórz widok zwracaj¹cy klientów, którzy zamówili przynajmniej jeden produkt z kategorii „S³odycze”.
+SELECT *
+FROM KLIENCI AS K INNER JOIN Zamówienia AS ZA ON K.IDklienta = ZA.IDklienta
+WHERE K.IDklienta NOT IN (
+SELECT Z.IDklienta
+FROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+INNER JOIN mg.Produkty AS PR ON PZ.IDproduktu = PR.IDproduktu
+INNER JOIN mg.Kategorie AS KA ON PR.IDkategorii = KA.IDkategorii
+WHERE KA.NazwaKategorii = 'S³odycze'
+)
+--Zdefiniuj procedurê przyjmuj¹c¹ datê pocz¹tkow¹ i koñcow¹ i zwracaj¹c¹ zamówienia w tym przedziale (z obs³ug¹ b³êdów daty).
+CREATE OR ALTER PROCEDURE PR_1
+@OD DATETIME, @DO DATETIME
+AS
+BEGIN
+	IF @OD IS NULL OR @DO IS NULL
+	BEGIN
+	RAISERROR('Podaj daty',16,1)
+	RETURN
+	END
+	IF @OD > @DO
+	BEGIN
+	RAISERROR('Podano daty w z³ej kolejnoœci!',16,1)
+	RETURN
+	END
+	SELECT *
+	FROM Zamówienia
+	WHERE DataZamówienia BETWEEN @OD AND @DO
+END
+EXEC PR_1 '1997-01-01', '1997-12-31';
+--Zdefiniuj procedurê, która przyjmie ID klienta i wypisze wszystkie jego zamówienia z dat¹ i wartoœci¹.
+CREATE OR ALTER PROCEDURE pr_2 @IDKlienta varchar(5)
+AS
+BEGIN
+SELECT Z.IDzamówienia, SUM(CenaJednostkowa*Iloœæ)AS ILE
+FROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+WHERE Z.IDklienta = @IDKlienta
+GROUP BY Z.IDzamówienia
+END
+
+EXEC pr_2 'ALFKI'
+--Zdefiniuj procedurê, która przyjmie nazwê kraju i wypisze wszystkich klientów z tego kraju oraz ich liczbê zamówieñ.
+CREATE OR ALTER PROCEDURE pr_3 @KRAJ VARCHAR(100)
+AS
+BEGIN
+SELECT K.IDklienta, COUNT(*) AS ILE
+FROM Klienci AS K INNER JOIN Zamówienia AS Z ON K.IDklienta = Z.IDklienta
+WHERE K.Kraj = @KRAJ
+GROUP BY K.IDklienta
+END
+
+EXEC pr_3 'Niemcy'
+--Zdefiniuj procedurê, która doda nowy produkt do tabeli Produkty (z podstawowymi walidacjami np. cena > 0).
+CREATE OR ALTER PROCEDURE pr_4
+    @Nazwa NVARCHAR(100),
+    @Cena MONEY,
+    @IDkategorii INT,
+    @IDdostawcy INT
+AS
+BEGIN
+    IF @Cena <= 0
+    BEGIN
+        RAISERROR('Cena musi byæ wiêksza od zera.', 16, 1);
+        RETURN;
+    END
+
+    INSERT INTO mg.Produkty (NazwaProduktu, CenaJednostkowa, IDkategorii, IDdostawcy, Wycofany)
+    VALUES (@Nazwa, @Cena, @IDkategorii, @IDdostawcy, 0)
+END
+GO
+--Zdefiniuj procedurê tworz¹c¹ kopiê tabeli Klienci do tymczasowej tabeli #BackupKlienci
+CREATE OR ALTER PROCEDURE pr_5
+AS
+BEGIN
+    SELECT * INTO #BackupKlienci
+    FROM Klienci
+END
+GO
+--Zdefiniuj funkcjê skalarn¹, która przyjmuje ID klienta i zwraca ³¹czn¹ wartoœæ jego zamówieñ.
+CREATE OR ALTER FUNCTION fn_1 (@IDKlienta varchar(5))
+RETURNS MONEY
+AS
+BEGIN
+DECLARE @WAR MONEY = 0
+SELECT @WAR = SUM(CenaJednostkowa*Iloœæ)
+FROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+WHERE Z.IDklienta = @IDKlienta
+RETURN @WAR
+END
+GO
+SELECT DBO.fn_1('ALFKI')
+--Zdefiniuj funkcjê tabelaryczn¹, która dla danego kraju zwraca listê klientów z tego kraju.
+CREATE OR ALTER FUNCTION fn_2 (@Kraj varchar(100))
+RETURNS TABLE
+AS
+RETURN
+SELECT *
+FROM Klienci AS K
+WHERE K.Kraj = @Kraj
+
+SELECT *
+FROM fn_2('USA')
+--Zdefiniuj funkcjê skalarn¹, która oblicza œredni¹ wartoœæ zamówienia klienta.
+CREATE OR ALTER FUNCTION fn_3 (@IDKlienta varchar(5))
+RETURNS MONEY
+AS
+BEGIN
+DECLARE @WAR MONEY = 0
+SELECT @WAR = AVG(WARTOŒÆ) FROM (
+SELECT SUM(CenaJednostkowa*Iloœæ) AS WARTOŒÆ
+FROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+WHERE Z.IDklienta = @IDKlienta) AS SUMA
+RETURN @WAR
+END
+
+SELECT dbo.fn_3('Alfki')
+--Zdefiniuj funkcjê tabelaryczn¹, która dla danego ID produktu zwraca wszystkie zamówienia, w których siê pojawi³.
+CREATE OR ALTER FUNCTION fn_4 (@IDPRODUKTU INT)
+RETURNS TABLE
+AS
+RETURN
+SELECT Z.IDzamówienia
+FROM Zamówienia AS Z INNER JOIN PozycjeZamówienia AS PZ ON Z.IDzamówienia = PZ.IDzamówienia
+INNER JOIN mg.Produkty AS PR ON PZ.IDproduktu = PR.IDproduktu
+WHERE PR.IDproduktu = @IDPRODUKTU
+
+SELECT *
+FROM fn_4(1)
+--Zdefiniuj funkcjê skalarn¹, która przyjmuje rok i zwraca liczbê zamówieñ z tego roku.
+CREATE OR ALTER FUNCTION fn_5 (@ROK INT)
+RETURNS INT
+AS
+BEGIN
+DECLARE @WYNIK INT = 0
+SELECT @WYNIK= COUNT(*)
+FROM Zamówienia AS Z
+WHERE YEAR(Z.DataZamówienia) = @ROK
+RETURN @WYNIK
+END
+SELECT DBO.fn_5(1997)
